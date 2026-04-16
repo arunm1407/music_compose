@@ -41,6 +41,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.myapplication.data.Song
 import com.example.myapplication.data.preferences.NowPlayingTheme
 import com.example.myapplication.ui.components.BottomNavBar
+import com.example.myapplication.ui.components.HeartBurstOverlay
 import com.example.myapplication.ui.components.MiniPlayer
 import com.example.myapplication.ui.components.SleepTimerDialog
 import com.example.myapplication.ui.components.SpotlightOnboarding
@@ -115,6 +116,7 @@ fun DVibessApp(
     var showQueueScreen by rememberSaveable { mutableStateOf(false) }
     var showLyricsScreen by rememberSaveable { mutableStateOf(false) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
+    var heartBurstTrigger by remember { mutableIntStateOf(0) }
 
     // Splash + Onboarding state
     var showSplash by remember { mutableStateOf(true) }
@@ -173,7 +175,10 @@ fun DVibessApp(
                     onToggleShuffle = viewModel::toggleShuffle,
                     onToggleRepeat = viewModel::toggleRepeatMode,
                     onToggleFavorite = {
-                        playerState.currentSong?.id?.let { viewModel.toggleFavorite(it) }
+                        playerState.currentSong?.id?.let { id ->
+                            if (id !in favoriteSongIds) heartBurstTrigger++
+                            viewModel.toggleFavorite(id)
+                        }
                     },
                     nowPlayingTheme = settingsState.nowPlayingTheme,
                     onShowLyrics = { showLyricsScreen = true },
@@ -198,6 +203,8 @@ fun DVibessApp(
                                 onRefresh = viewModel::refreshHome,
                                 currentSongId = playerState.currentSong?.id,
                                 isPlaying = playerState.isPlaying,
+                                isAuroraTheme = settingsState.useAuroraTheme,
+                                onToggleAurora = { settingsViewModel.setUseAuroraTheme(!settingsState.useAuroraTheme) },
                                 modifier = Modifier.padding(top = 48.dp),
                             )
                             1 -> SearchScreen(
@@ -252,7 +259,10 @@ fun DVibessApp(
                                 onClick = { showPlayerScreen = true },
                                 isFavorite = playerState.currentSong?.id in favoriteSongIds,
                                 onToggleFavorite = {
-                                    playerState.currentSong?.id?.let { viewModel.toggleFavorite(it) }
+                                    playerState.currentSong?.id?.let { id ->
+                                        if (id !in favoriteSongIds) heartBurstTrigger++
+                                        viewModel.toggleFavorite(id)
+                                    }
                                 },
                             )
                         }
@@ -285,6 +295,9 @@ fun DVibessApp(
                 },
             )
         }
+
+        // Heart burst overlay — on top of everything
+        HeartBurstOverlay(trigger = heartBurstTrigger)
 
         // Spotlight onboarding overlay
         if (showOnboarding && navItemBounds.size >= 3 && contentBounds != null) {
