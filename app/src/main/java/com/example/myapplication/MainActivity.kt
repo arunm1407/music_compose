@@ -184,6 +184,7 @@ fun DVibessApp(
                     onShowLyrics = { showLyricsScreen = true },
                     onShowQueue = { showQueueScreen = true },
                     onShowSleepTimer = { showSleepTimerDialog = true },
+                    isAuroraTheme = settingsState.useAuroraTheme,
                 )
             }
             else -> {
@@ -222,6 +223,7 @@ fun DVibessApp(
                                 currentSongId = playerState.currentSong?.id,
                                 isPlaying = playerState.isPlaying,
                                 favoriteSongIds = favoriteSongIds,
+                                isAuroraTheme = settingsState.useAuroraTheme,
                                 modifier = Modifier.padding(top = 48.dp),
                             )
                             3 -> SettingsScreen(
