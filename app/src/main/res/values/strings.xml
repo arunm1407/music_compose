@@ -1,3 +1,5 @@
 <resources>
-    <string name="app_name">My Application</string>
+    <string name="app_name">DVibes</string>
+    <string name="notification_channel_name">DVibes Playback</string>
+    <string name="notification_channel_description">Music playback controls</string>
 </resources>
