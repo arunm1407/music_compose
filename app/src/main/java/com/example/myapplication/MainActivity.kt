@@ -215,6 +215,7 @@ fun DVibessApp(
                                 onSongClick = onSongClick,
                                 currentSongId = playerState.currentSong?.id,
                                 isPlaying = playerState.isPlaying,
+                                isAuroraTheme = settingsState.useAuroraTheme,
                                 modifier = Modifier.padding(top = 48.dp),
                             )
                             2 -> LibraryScreen(
