@@ -15,8 +15,10 @@ import com.example.myapplication.data.db.entity.*
         PlayHistoryEntity::class,
         PlayCountEntity::class,
         LyricsEntity::class,
+        SongCacheEntity::class,
+        DownloadEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -25,6 +27,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playHistoryDao(): PlayHistoryDao
     abstract fun playCountDao(): PlayCountDao
     abstract fun lyricsDao(): LyricsDao
+    abstract fun songCacheDao(): SongCacheDao
+    abstract fun downloadDao(): DownloadDao
 
     companion object {
         @Volatile
@@ -36,7 +40,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "dvibess_database"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

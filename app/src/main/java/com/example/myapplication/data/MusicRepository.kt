@@ -11,6 +11,21 @@ object MusicRepository {
             .filter { it.mediaUrl.isNotBlank() }
     }
 
+    private fun normalizeSearchQuery(query: String): String {
+        val lower = query.trim().lowercase()
+        val isKavasamSearch = lower.contains("kavasam") || lower.contains("kavacham") ||
+            lower.contains("sasti") || lower.contains("sashti") || lower.contains("shasti")
+
+        if (!isKavasamSearch) return query.trim()
+
+        return when {
+            lower.contains("kandha") || lower.contains("kanda") || lower.contains("kandar") -> query.trim()
+            lower.contains("shanth") || lower.contains("shanda") || lower.contains("shasta") ->
+                query.trim().replace(Regex("shanth[a]?|shanda|shasta", RegexOption.IGNORE_CASE), "Kandha")
+            else -> "Kandha Sasti Kavasam"
+        }
+    }
+
     suspend fun getTrendingTamil(): List<Song> =
         searchAndMap("tamil hits 2024")
 
@@ -29,6 +44,13 @@ object MusicRepository {
     suspend fun getARRahmanHits(): List<Song> =
         searchAndMap("AR Rahman tamil hits")
 
-    suspend fun searchSongs(query: String): List<Song> =
-        searchAndMap(query, 30)
+    suspend fun getDevotional(): List<Song> =
+        searchAndMap("Kandha Sasti Kavasam", 10)
+
+    suspend fun searchSongs(query: String): List<Song> {
+        val normalized = normalizeSearchQuery(query)
+        val results = searchAndMap(normalized, 30)
+        if (results.isNotEmpty() || normalized == query.trim()) return results
+        return searchAndMap(query.trim(), 30)
+    }
 }

@@ -9,12 +9,15 @@ import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.example.myapplication.MainActivity
+import com.example.myapplication.R
 import com.example.myapplication.network.MusicApi
 
 class MusicService : MediaSessionService() {
@@ -31,16 +34,26 @@ class MusicService : MediaSessionService() {
         super.onCreate()
         createNotificationChannel()
 
-        val okHttpDataSourceFactory = OkHttpDataSource.Factory(MusicApi.client)
+        setMediaNotificationProvider(
+            DefaultMediaNotificationProvider.Builder(this)
+                .setChannelId(CHANNEL_ID)
+                .setNotificationId(1001)
+                .build()
+        )
+
+        val dataSourceFactory = DefaultDataSource.Factory(
+            this,
+            OkHttpDataSource.Factory(MusicApi.client),
+        )
 
         player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(okHttpDataSourceFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                     .setUsage(C.USAGE_MEDIA)
                     .build(),
-                true
+                true,
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
@@ -48,8 +61,11 @@ class MusicService : MediaSessionService() {
         val sessionActivityPendingIntent = PendingIntent.getActivity(
             this,
             0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(MainActivity.EXTRA_OPEN_PLAYER, true)
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
         mediaSession = MediaSession.Builder(this, player)
@@ -62,11 +78,8 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        mediaSession?.player?.let { player ->
-            player.stop()
-            player.clearMediaItems()
-        }
-        stopSelf()
+        // Keep playback running when the user dismisses the app from recents.
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
@@ -82,14 +95,13 @@ class MusicService : MediaSessionService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "DVibess Playback",
-                NotificationManager.IMPORTANCE_LOW
+                getString(R.string.notification_channel_name),
+                NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "Music playback controls"
+                description = getString(R.string.notification_channel_description)
                 setShowBadge(false)
             }
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
     }
 }

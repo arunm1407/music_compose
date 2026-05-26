@@ -29,6 +29,10 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -86,6 +90,10 @@ fun NormalPlayerLayout(
     onShowLyrics: () -> Unit,
     onShowQueue: () -> Unit,
     isAuroraTheme: Boolean = false,
+    isDownloaded: Boolean = false,
+    isDownloading: Boolean = false,
+    onDownload: () -> Unit = {},
+    onAddToPlaylist: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val song = playerState.currentSong ?: return
@@ -401,6 +409,35 @@ fun NormalPlayerLayout(
                         tint = if (isFavorite) favoriteActiveColor else Color.White.copy(alpha = 0.7f),
                         modifier = Modifier.size(24.dp),
                     )
+                }
+                IconButton(onClick = onAddToPlaylist) {
+                    Icon(
+                        Icons.Default.PlaylistAdd,
+                        contentDescription = "Add to playlist",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+                when {
+                    isDownloading -> CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = accentColor,
+                    )
+                    isDownloaded -> Icon(
+                        Icons.Default.DownloadDone,
+                        contentDescription = "Downloaded",
+                        tint = accentColor,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    else -> IconButton(onClick = onDownload) {
+                        Icon(
+                            Icons.Default.Download,
+                            contentDescription = "Download",
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                 }
                 IconButton(onClick = onShowLyrics) {
                     Icon(

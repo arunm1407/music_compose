@@ -301,6 +301,18 @@ private fun HomeContent(
             )
             Spacer(modifier = Modifier.height(24.dp))
         }
+
+        if (homeState.devotionalSongs.isNotEmpty()) {
+            SongSection(
+                title = "Devotional",
+                songs = homeState.devotionalSongs,
+                onSongClick = { song -> onSongClick(song, homeState.devotionalSongs) },
+                currentSongId = currentSongId,
+                isPlaying = isPlaying,
+                isAuroraTheme = isAuroraTheme,
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+        }
     }
 }
 

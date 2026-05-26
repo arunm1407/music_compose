@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.PlayArrow
@@ -23,10 +24,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.example.myapplication.ui.components.rememberImagePlaceholder
 import com.example.myapplication.data.Song
+import com.example.myapplication.ui.components.DragReorderItem
+import com.example.myapplication.ui.components.moveItem
+import com.example.myapplication.ui.components.rememberDragReorderState
+import com.example.myapplication.ui.components.rememberImagePlaceholder
 import com.example.myapplication.ui.theme.AccentGreen
-import com.example.myapplication.ui.theme.CardDark
 import com.example.myapplication.ui.theme.LightGray
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,19 +37,27 @@ import com.example.myapplication.ui.theme.LightGray
 fun QueueScreen(
     queue: List<Song>,
     currentIndex: Int,
+    shuffleEnabled: Boolean = false,
     onBack: () -> Unit,
     onSongClick: (Int) -> Unit,
     onRemove: (Int) -> Unit,
+    onMove: (Int, Int) -> Unit,
     onClearQueue: () -> Unit,
     onSaveAsPlaylist: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var orderedQueue by remember(queue) { mutableStateOf(queue) }
+    var isReordering by remember { mutableStateOf(false) }
+    LaunchedEffect(queue) {
+        if (!isReordering) orderedQueue = queue
+    }
+    val dragState = rememberDragReorderState()
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        // Top bar
         TopAppBar(
             title = { Text("Playing Queue", fontWeight = FontWeight.Bold) },
             navigationIcon = {
@@ -69,7 +80,7 @@ fun QueueScreen(
             ),
         )
 
-        if (queue.isEmpty()) {
+        if (orderedQueue.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
@@ -77,11 +88,10 @@ fun QueueScreen(
                 Text("Queue is empty", color = LightGray, style = MaterialTheme.typography.bodyLarge)
             }
         } else {
-            // Now playing header
             Text(
-                text = "Now Playing",
+                text = if (shuffleEnabled) "Shuffle is on — turn it off to reorder" else "Hold and drag to reorder",
                 style = MaterialTheme.typography.labelMedium,
-                color = AccentGreen,
+                color = if (shuffleEnabled) LightGray else AccentGreen,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
 
@@ -89,62 +99,96 @@ fun QueueScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 80.dp),
             ) {
-                itemsIndexed(queue) { index, song ->
+                itemsIndexed(orderedQueue, key = { _, song -> song.id }) { index, song ->
                     val isCurrentlyPlaying = index == currentIndex
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSongClick(index) }
-                            .background(if (isCurrentlyPlaying) AccentGreen.copy(alpha = 0.1f) else Color.Transparent)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (isCurrentlyPlaying) {
-                            Icon(
-                                Icons.Default.PlayArrow,
-                                contentDescription = "Playing",
-                                tint = AccentGreen,
-                                modifier = Modifier.size(20.dp),
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        val placeholder = rememberImagePlaceholder()
-                        AsyncImage(
-                            model = song.coverUrl,
-                            contentDescription = song.title,
-                            contentScale = ContentScale.Crop,
-                            placeholder = placeholder,
-                            error = placeholder,
+                    val isDragging = dragState.draggingKey == song.id
+                    DragReorderItem(
+                        itemKey = song.id,
+                        index = index,
+                        itemCount = orderedQueue.size,
+                        draggingKey = dragState.draggingKey,
+                        onDragStart = {
+                            isReordering = true
+                            dragState.startDrag(it)
+                        },
+                        onDragEnd = {
+                            dragState.endDrag()
+                            isReordering = false
+                        },
+                        onMove = { from, to ->
+                            orderedQueue = orderedQueue.moveItem(from, to)
+                            onMove(from, to)
+                        },
+                        enabled = !shuffleEnabled,
+                    ) { handleModifier ->
+                        Row(
                             modifier = Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(6.dp)),
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = song.title,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = if (isCurrentlyPlaying) AccentGreen else Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                                .fillMaxWidth()
+                                .background(
+                                    when {
+                                        isDragging -> AccentGreen.copy(alpha = 0.18f)
+                                        isCurrentlyPlaying -> AccentGreen.copy(alpha = 0.1f)
+                                        else -> Color.Transparent
+                                    },
+                                )
+                                .clickable { onSongClick(index) }
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Default.DragHandle,
+                                contentDescription = "Drag to reorder",
+                                tint = if (shuffleEnabled) LightGray.copy(alpha = 0.3f) else LightGray,
+                                modifier = handleModifier
+                                    .size(36.dp)
+                                    .padding(6.dp),
                             )
-                            Text(
-                                text = song.artist,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = LightGray,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                            if (isCurrentlyPlaying) {
+                                Icon(
+                                    Icons.Default.PlayArrow,
+                                    contentDescription = "Playing",
+                                    tint = AccentGreen,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
+                            val placeholder = rememberImagePlaceholder()
+                            AsyncImage(
+                                model = song.coverUrl,
+                                contentDescription = song.title,
+                                contentScale = ContentScale.Crop,
+                                placeholder = placeholder,
+                                error = placeholder,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(6.dp)),
                             )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = song.title,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = if (isCurrentlyPlaying) AccentGreen else Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = song.artist,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = LightGray,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            IconButton(onClick = { onRemove(index) }, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Remove from queue",
+                                    tint = LightGray,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
                         }
-                        IconButton(onClick = { onRemove(index) }, modifier = Modifier.size(36.dp)) {
-                            Icon(Icons.Default.Delete, contentDescription = "Remove", tint = LightGray, modifier = Modifier.size(18.dp))
-                        }
-                        Icon(
-                            Icons.Default.DragHandle,
-                            contentDescription = "Reorder",
-                            tint = LightGray,
-                            modifier = Modifier.size(20.dp),
-                        )
                     }
                 }
             }

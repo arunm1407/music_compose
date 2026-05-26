@@ -21,8 +21,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -90,6 +92,7 @@ fun SearchScreen(
     isSearching: Boolean,
     onSearch: (String) -> Unit,
     onSongClick: (Song, List<Song>) -> Unit,
+    onAddToPlaylist: (Song) -> Unit = {},
     currentSongId: String? = null,
     isPlaying: Boolean = false,
     isAuroraTheme: Boolean = false,
@@ -200,6 +203,7 @@ fun SearchScreen(
                                     SearchResultItem(
                                         song = song,
                                         onClick = { onSongClick(song, searchResults) },
+                                        onAddToPlaylist = { onAddToPlaylist(song) },
                                         isCurrentSong = song.id == currentSongId,
                                         isPlaying = isPlaying,
                                         isAuroraTheme = true,
@@ -209,6 +213,7 @@ fun SearchScreen(
                                 SearchResultItem(
                                     song = song,
                                     onClick = { onSongClick(song, searchResults) },
+                                    onAddToPlaylist = { onAddToPlaylist(song) },
                                     isCurrentSong = song.id == currentSongId,
                                     isPlaying = isPlaying,
                                 )
@@ -282,6 +287,7 @@ fun SearchScreen(
 private fun SearchResultItem(
     song: Song,
     onClick: () -> Unit,
+    onAddToPlaylist: () -> Unit = {},
     isCurrentSong: Boolean = false,
     isPlaying: Boolean = false,
     isAuroraTheme: Boolean = false,
@@ -323,6 +329,15 @@ private fun SearchResultItem(
         }
         if (isCurrentSong) {
             NowPlayingIndicator(isPlaying = isPlaying)
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        IconButton(onClick = onAddToPlaylist, modifier = Modifier.size(36.dp)) {
+            Icon(
+                Icons.Default.PlaylistAdd,
+                contentDescription = "Add to playlist",
+                tint = LightGray,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

@@ -106,6 +106,10 @@ fun PlayerScreen(
     onShowQueue: () -> Unit = {},
     onShowSleepTimer: () -> Unit = {},
     isAuroraTheme: Boolean = false,
+    isDownloaded: Boolean = false,
+    isDownloading: Boolean = false,
+    onDownload: () -> Unit = {},
+    onAddToPlaylist: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val song = playerState.currentSong ?: return
@@ -153,6 +157,10 @@ fun PlayerScreen(
                 onShowLyrics = onShowLyrics,
                 onShowQueue = onShowQueue,
                 isAuroraTheme = isAuroraTheme,
+                isDownloaded = isDownloaded,
+                isDownloading = isDownloading,
+                onDownload = onDownload,
+                onAddToPlaylist = onAddToPlaylist,
             )
             NowPlayingTheme.BLUR -> BlurPlayerLayout(
                 playerState = playerState,

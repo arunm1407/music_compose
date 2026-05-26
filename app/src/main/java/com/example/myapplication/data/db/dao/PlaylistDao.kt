@@ -2,6 +2,7 @@ package com.example.myapplication.data.db.dao
 
 import androidx.room.*
 import com.example.myapplication.data.db.entity.PlaylistEntity
+import com.example.myapplication.data.db.entity.PlaylistIdCount
 import com.example.myapplication.data.db.entity.PlaylistSongCrossRef
 import kotlinx.coroutines.flow.Flow
 
@@ -36,6 +37,15 @@ interface PlaylistDao {
 
     @Query("SELECT COUNT(*) FROM playlist_songs WHERE playlistId = :playlistId")
     fun getPlaylistSongCount(playlistId: Long): Flow<Int>
+
+    @Query("SELECT playlistId, COUNT(*) AS songCount FROM playlist_songs GROUP BY playlistId")
+    fun observePlaylistSongCounts(): Flow<List<PlaylistIdCount>>
+
+    @Query("SELECT songId FROM playlist_songs WHERE playlistId = :playlistId")
+    suspend fun getPlaylistSongIds(playlistId: Long): List<String>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM playlist_songs WHERE playlistId = :playlistId AND songId = :songId)")
+    suspend fun isSongInPlaylist(playlistId: Long, songId: String): Boolean
 
     @Query("DELETE FROM playlist_songs WHERE playlistId = :playlistId")
     suspend fun clearPlaylist(playlistId: Long)

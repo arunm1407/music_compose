@@ -9,12 +9,13 @@ data class HomeState(
     val massSongs: List<Song> = emptyList(),
     val anirudhHits: List<Song> = emptyList(),
     val arRahmanHits: List<Song> = emptyList(),
+    val devotionalSongs: List<Song> = emptyList(),
     val error: String? = null,
 ) {
     val quickAccess: List<Song>
         get() = trendingSongs.take(6)
 
     val allSongs: List<Song>
-        get() = (trendingSongs + recentSongs + romanticSongs + massSongs + anirudhHits + arRahmanHits)
+        get() = (trendingSongs + recentSongs + romanticSongs + massSongs + anirudhHits + arRahmanHits + devotionalSongs)
             .distinctBy { it.id }
 }

@@ -59,7 +59,10 @@ fun PlaylistCard(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "$songCount songs",
+                text = when (songCount) {
+                    1 -> "1 song"
+                    else -> "$songCount songs"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = LightGray,
             )
