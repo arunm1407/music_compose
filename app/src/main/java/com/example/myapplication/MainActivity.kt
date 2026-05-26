@@ -45,9 +45,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.myapplication.data.LyricsState
 import com.example.myapplication.data.Song
 import com.example.myapplication.data.isPlayable
-import com.example.myapplication.data.isPlayable
 import com.example.myapplication.data.mergeCatalogSongs
-import com.example.myapplication.data.db.entity.PlaylistEntity
+import com.example.myapplication.ui.components.syncOrderedListByIds
 import com.example.myapplication.ui.components.AddSongsToPlaylistSheet
 import com.example.myapplication.ui.components.AddToPlaylistDialog
 import com.example.myapplication.ui.components.BottomNavBar
@@ -195,7 +194,8 @@ fun DVibessApp(
         if (playlist == null) {
             playlistSongs = emptyList()
         } else {
-            playlistSongs = playlistViewModel.getPlaylistSongs(playlist.id, catalogSongs)
+            val loaded = playlistViewModel.getPlaylistSongs(playlist.id, catalogSongs)
+            playlistSongs = syncOrderedListByIds(playlistSongs, loaded) { it.id }
         }
     }
 
@@ -209,10 +209,13 @@ fun DVibessApp(
     val onSongClick: (Song, List<Song>) -> Unit = remember(musicViewModel, playlistViewModel) {
         { song, playlist ->
             scope.launch {
+                if (!song.isPlayable()) return@launch
                 val enriched = playlistViewModel.enrichWithDownloads(playlist)
                 val enrichedSong = enriched.find { it.id == song.id } ?: song
-                musicViewModel.playSong(enrichedSong, enriched, sequential = true)
-                playlistViewModel.logPlay(enrichedSong)
+                if (!enrichedSong.isPlayable()) return@launch
+                musicViewModel.playSong(enrichedSong, enriched, sequential = true) { started ->
+                    playlistViewModel.logPlay(started)
+                }
             }
         }
     }
@@ -222,11 +225,14 @@ fun DVibessApp(
             scope.launch {
                 if (playlistSongs.isEmpty()) return@launch
                 val enriched = playlistViewModel.enrichWithDownloads(playlistSongs)
-                musicViewModel.playShuffled(enriched)
-                enriched.firstOrNull { it.isPlayable() }?.let { playlistViewModel.logPlay(it) }
+                musicViewModel.playShuffled(enriched) { started ->
+                    playlistViewModel.logPlay(started)
+                }
             }
         }
     }
+
+    var pendingOpenPlayer by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         musicViewModel.syncPlaybackState()
@@ -235,8 +241,15 @@ fun DVibessApp(
     LaunchedEffect(openPlayerTrigger) {
         if (openPlayerTrigger > 0) {
             showSplash = false
+            pendingOpenPlayer = true
             musicViewModel.syncPlaybackState()
+        }
+    }
+
+    LaunchedEffect(pendingOpenPlayer, playerState.currentSong) {
+        if (pendingOpenPlayer && playerState.currentSong != null) {
             showPlayerScreen = true
+            pendingOpenPlayer = false
         }
     }
 
@@ -246,8 +259,8 @@ fun DVibessApp(
         }
     }
 
-    LaunchedEffect(showPlayerScreen, playerState.currentSong) {
-        if (showPlayerScreen && playerState.currentSong == null) {
+    LaunchedEffect(showPlayerScreen, playerState.currentSong, pendingOpenPlayer) {
+        if (showPlayerScreen && playerState.currentSong == null && !pendingOpenPlayer) {
             showPlayerScreen = false
         }
     }
@@ -344,6 +357,8 @@ fun DVibessApp(
                     songs = playlistSongs,
                     downloadedSongIds = downloadedIds,
                     downloadProgress = downloadProgress,
+                    currentSongId = playerState.currentSong?.id,
+                    isPlaying = playerState.isPlaying,
                     onBack = { selectedPlaylistId = null },
                     onSongClick = onSongClick,
                     onShuffle = onPlaylistShuffle,

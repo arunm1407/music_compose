@@ -4,7 +4,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -22,6 +21,7 @@ import com.example.myapplication.data.playbackUri
 import com.example.myapplication.service.MusicService
 import com.example.myapplication.service.SleepTimer
 import com.google.common.util.concurrent.MoreExecutors
+import java.util.Collections
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,12 +44,9 @@ class MusicViewModel(private val context: Context) : ViewModel() {
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
 
-    private val _favoriteSongIds = MutableStateFlow<Set<String>>(emptySet())
-    val favoriteSongIds: StateFlow<Set<String>> = _favoriteSongIds.asStateFlow()
-
     private var mediaController: MediaController? = null
     private var isPositionTracking = false
-    private val pendingControllerActions = mutableListOf<() -> Unit>()
+    private val pendingControllerActions = Collections.synchronizedList(mutableListOf<() -> Unit>())
 
     private val sleepTimer = SleepTimer()
 
@@ -165,13 +162,16 @@ class MusicViewModel(private val context: Context) : ViewModel() {
         if (controller != null) {
             action()
         } else {
-            pendingControllerActions.add(action)
+            synchronized(pendingControllerActions) {
+                pendingControllerActions.add(action)
+            }
         }
     }
 
     private fun flushPendingControllerActions() {
-        val actions = pendingControllerActions.toList()
-        pendingControllerActions.clear()
+        val actions = synchronized(pendingControllerActions) {
+            pendingControllerActions.toList().also { pendingControllerActions.clear() }
+        }
         actions.forEach { it() }
     }
 
@@ -180,6 +180,10 @@ class MusicViewModel(private val context: Context) : ViewModel() {
         if (controller.mediaItemCount == 0) {
             _playerState.update {
                 it.copy(
+                    currentSong = null,
+                    queue = emptyList(),
+                    playlist = emptyList(),
+                    currentIndex = 0,
                     isPlaying = controller.isPlaying,
                     currentPosition = controller.currentPosition.coerceAtLeast(0L),
                     duration = controller.duration.coerceAtLeast(0L),
@@ -187,7 +191,7 @@ class MusicViewModel(private val context: Context) : ViewModel() {
                     repeatMode = mapRepeatMode(controller.repeatMode),
                 )
             }
-            if (controller.isPlaying) startPositionTracking()
+            if (controller.isPlaying) startPositionTracking() else stopPositionTracking()
             return
         }
 
@@ -311,11 +315,16 @@ class MusicViewModel(private val context: Context) : ViewModel() {
         playlist: List<Song>? = null,
         sequential: Boolean = true,
         shuffle: Boolean = false,
+        onStarted: ((Song) -> Unit)? = null,
     ) {
-        runWhenControllerReady { playSongInternal(song, playlist, sequential, shuffle) }
+        runWhenControllerReady {
+            playSongInternal(song, playlist, sequential, shuffle)?.let { started ->
+                onStarted?.invoke(started)
+            }
+        }
     }
 
-    fun playShuffled(playlist: List<Song>) {
+    fun playShuffled(playlist: List<Song>, onStarted: ((Song) -> Unit)? = null) {
         val playable = playlist.filter { it.isPlayable() }
         if (playable.isEmpty()) return
         playSong(
@@ -323,6 +332,7 @@ class MusicViewModel(private val context: Context) : ViewModel() {
             playlist = playable,
             sequential = false,
             shuffle = true,
+            onStarted = onStarted,
         )
     }
 
@@ -331,21 +341,15 @@ class MusicViewModel(private val context: Context) : ViewModel() {
         playlist: List<Song>?,
         sequential: Boolean,
         shuffle: Boolean,
-    ) {
-        val controller = mediaController ?: return
+    ): Song? {
+        val controller = mediaController ?: return null
         val sourcePlaylist = playlist ?: _homeState.value.allSongs
-        var effectivePlaylist = sourcePlaylist.filter { it.isPlayable() }
+        val effectivePlaylist = sourcePlaylist.filter { it.isPlayable() }
+        if (effectivePlaylist.isEmpty()) return null
 
-        if (effectivePlaylist.isEmpty()) {
-            if (!song.isPlayable()) return
-            effectivePlaylist = listOf(song)
-        } else if (effectivePlaylist.none { it.id == song.id } && song.isPlayable()) {
-            effectivePlaylist = listOf(song) + effectivePlaylist.filter { it.id != song.id }
-        }
+        val startIndex = effectivePlaylist.indexOfFirst { it.id == song.id }
+        if (startIndex < 0) return null
 
-        val startIndex = effectivePlaylist.indexOfFirst { it.id == song.id }.let { index ->
-            if (index >= 0) index else 0
-        }
         val resolvedSong = effectivePlaylist[startIndex]
 
         controller.shuffleModeEnabled = shuffle
@@ -366,6 +370,7 @@ class MusicViewModel(private val context: Context) : ViewModel() {
                 shuffleEnabled = controller.shuffleModeEnabled,
             )
         }
+        return resolvedSong
     }
 
     fun playQueueItem(index: Int) {
@@ -441,7 +446,9 @@ class MusicViewModel(private val context: Context) : ViewModel() {
     }
 
     fun seekTo(positionMs: Long) {
-        mediaController?.seekTo(positionMs)
+        runWhenControllerReady {
+            mediaController?.seekTo(positionMs)
+        }
     }
 
     fun toggleShuffle() {
@@ -450,14 +457,6 @@ class MusicViewModel(private val context: Context) : ViewModel() {
             controller.shuffleModeEnabled = !controller.shuffleModeEnabled
         }
     }
-
-    fun toggleFavorite(songId: String) {
-        _favoriteSongIds.update { current ->
-            if (songId in current) current - songId else current + songId
-        }
-    }
-
-    fun isFavorite(songId: String): Boolean = songId in _favoriteSongIds.value
 
     fun toggleRepeatMode() {
         runWhenControllerReady {
@@ -534,12 +533,5 @@ class MusicViewModel(private val context: Context) : ViewModel() {
         stopPositionTracking()
         sleepTimer.cancel()
         mediaController?.release()
-    }
-}
-
-class MusicViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        @Suppress("UNCHECKED_CAST")
-        return MusicViewModel(context.applicationContext) as T
     }
 }

@@ -131,14 +131,10 @@ class PlaylistViewModel(
                 ?: songCacheDao.getById(ref.songId)?.toSong()
         }
         val enriched = enrichWithDownloads(songs)
-        val resolved = enriched.map { song ->
+        return enriched.map { song ->
             if (song.isPlayable()) song
             else catalogMap[song.id]?.let { mergeSongForPlayback(song, it) ?: it } ?: song
-        }
-        songCacheDao.upsertAll(
-            resolved.filter { it.mediaUrl.isNotBlank() || it.filePath != null }.map { it.toCacheEntity() }
-        )
-        return enrichWithDownloads(resolved)
+        }.let { resolved -> enrichWithDownloads(resolved) }
     }
 
     fun removeSongFromPlaylist(playlistId: Long, songId: String) {

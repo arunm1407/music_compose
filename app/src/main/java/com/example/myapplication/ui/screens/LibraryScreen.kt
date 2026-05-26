@@ -444,7 +444,7 @@ fun DownloadsScreen(
                 }
             }
         } else {
-            LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+            LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 80.dp)) {
                 itemsIndexed(songs) { _, song ->
                     Row(
                         modifier = Modifier

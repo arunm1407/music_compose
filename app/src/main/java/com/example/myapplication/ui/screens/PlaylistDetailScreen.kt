@@ -30,10 +30,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.myapplication.data.Song
+import com.example.myapplication.data.isPlayable
 import com.example.myapplication.download.DownloadProgress
+import com.example.myapplication.ui.components.NowPlayingIndicator
 import com.example.myapplication.ui.components.DragReorderItem
 import com.example.myapplication.ui.components.moveItem
 import com.example.myapplication.ui.components.rememberDragReorderState
+import com.example.myapplication.ui.components.syncOrderedListByIds
 import com.example.myapplication.ui.components.rememberImagePlaceholder
 import com.example.myapplication.ui.theme.AccentGreen
 import com.example.myapplication.ui.theme.CardDark
@@ -46,6 +49,8 @@ fun PlaylistDetailScreen(
     songs: List<Song>,
     downloadedSongIds: Set<String> = emptySet(),
     downloadProgress: Map<String, DownloadProgress> = emptyMap(),
+    currentSongId: String? = null,
+    isPlaying: Boolean = false,
     onDownloadSong: ((Song) -> Unit)? = null,
     onBack: () -> Unit,
     onSongClick: (Song, List<Song>) -> Unit,
@@ -62,9 +67,14 @@ fun PlaylistDetailScreen(
     var orderedSongs by remember(songs) { mutableStateOf(songs) }
     var isReordering by remember { mutableStateOf(false) }
     LaunchedEffect(songs) {
-        if (!isReordering) orderedSongs = songs
+        if (isReordering) return@LaunchedEffect
+        orderedSongs = syncOrderedListByIds(orderedSongs, songs) { it.id }
+    }
+    LaunchedEffect(playlistName) {
+        renameText = playlistName
     }
     val dragState = rememberDragReorderState()
+    val firstPlayableSong = remember(orderedSongs) { orderedSongs.firstOrNull { it.isPlayable() } }
 
     LazyColumn(
         modifier = modifier
@@ -116,14 +126,20 @@ fun PlaylistDetailScreen(
 
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
-                        onClick = { if (orderedSongs.isNotEmpty()) onSongClick(orderedSongs.first(), orderedSongs) },
+                        onClick = {
+                            firstPlayableSong?.let { onSongClick(it, orderedSongs) }
+                        },
+                        enabled = firstPlayableSong != null,
                         colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Play")
                     }
-                    OutlinedButton(onClick = onShuffle) {
+                    OutlinedButton(
+                        onClick = onShuffle,
+                        enabled = firstPlayableSong != null,
+                    ) {
                         Icon(Icons.Default.Shuffle, contentDescription = null, tint = AccentGreen)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Shuffle", color = AccentGreen)
@@ -166,19 +182,19 @@ fun PlaylistDetailScreen(
             }
             itemsIndexed(orderedSongs, key = { _, song -> song.id }) { index, song ->
                 val isDragging = dragState.draggingKey == song.id
+                val isPlayable = song.isPlayable()
                 DragReorderItem(
                     itemKey = song.id,
                     index = index,
                     itemCount = orderedSongs.size,
-                    draggingKey = dragState.draggingKey,
-                    onDragStart = {
+                    dragState = dragState,
+                    onDragStart = { _, startIndex ->
                         isReordering = true
-                        dragState.startDrag(it)
+                        dragState.startDrag(song.id, startIndex)
                     },
                     onDragEnd = {
-                        dragState.endDrag()
-                        isReordering = false
                         onReorderSongs?.invoke(orderedSongs)
+                        isReordering = false
                     },
                     onMove = { from, to ->
                         orderedSongs = orderedSongs.moveItem(from, to)
@@ -189,18 +205,21 @@ fun PlaylistDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(if (isDragging) AccentGreen.copy(alpha = 0.18f) else Color.Transparent)
-                            .clickable { onSongClick(song, orderedSongs) }
+                            .clickable(enabled = isPlayable) { onSongClick(song, orderedSongs) }
                             .padding(horizontal = 8.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            Icons.Default.DragHandle,
-                            contentDescription = "Drag to reorder",
-                            tint = LightGray,
-                            modifier = handleModifier
-                                .size(36.dp)
-                                .padding(6.dp),
-                        )
+                        Box(
+                            modifier = handleModifier.size(48.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Default.DragHandle,
+                                contentDescription = "Drag to reorder",
+                                tint = LightGray,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
                         val placeholder = rememberImagePlaceholder()
                         AsyncImage(
                             model = song.coverUrl,
@@ -217,17 +236,31 @@ fun PlaylistDetailScreen(
                             Text(
                                 text = song.title,
                                 style = MaterialTheme.typography.titleSmall,
-                                color = Color.White,
+                                color = when {
+                                    song.id == currentSongId -> AccentGreen
+                                    !isPlayable -> LightGray.copy(alpha = 0.6f)
+                                    else -> Color.White
+                                },
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                text = "${song.artist} • ${song.album}",
+                                text = buildString {
+                                    append(song.artist)
+                                    append(" • ")
+                                    append(song.album)
+                                    if (song.id in downloadedSongIds) append(" • Offline")
+                                    if (!isPlayable) append(" • Unavailable")
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = LightGray,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
+                        }
+                        if (song.id == currentSongId) {
+                            NowPlayingIndicator(isPlaying = isPlaying)
+                            Spacer(modifier = Modifier.width(4.dp))
                         }
                         if (onDownloadSong != null) {
                             when {

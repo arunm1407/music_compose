@@ -25,7 +25,7 @@ fun mergeSongForPlayback(cached: Song?, catalog: Song?): Song? {
             return when {
                 catalogLocalPath != null -> catalog.copy(filePath = catalogLocalPath)
                 cachedLocalPath != null -> cached.copy(filePath = cachedLocalPath)
-                catalog.mediaUrl.isNotBlank() -> catalog.copy(filePath = cachedLocalPath)
+                catalog.mediaUrl.isNotBlank() -> catalog
                 cached.mediaUrl.isNotBlank() -> cached
                 else -> catalog.takeIf { it.isPlayable() } ?: cached.takeIf { it.isPlayable() }
             }

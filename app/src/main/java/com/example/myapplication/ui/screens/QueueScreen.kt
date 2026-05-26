@@ -28,6 +28,7 @@ import com.example.myapplication.data.Song
 import com.example.myapplication.ui.components.DragReorderItem
 import com.example.myapplication.ui.components.moveItem
 import com.example.myapplication.ui.components.rememberDragReorderState
+import com.example.myapplication.ui.components.syncOrderedListByIds
 import com.example.myapplication.ui.components.rememberImagePlaceholder
 import com.example.myapplication.ui.theme.AccentGreen
 import com.example.myapplication.ui.theme.LightGray
@@ -49,7 +50,8 @@ fun QueueScreen(
     var orderedQueue by remember(queue) { mutableStateOf(queue) }
     var isReordering by remember { mutableStateOf(false) }
     LaunchedEffect(queue) {
-        if (!isReordering) orderedQueue = queue
+        if (isReordering) return@LaunchedEffect
+        orderedQueue = syncOrderedListByIds(orderedQueue, queue) { it.id }
     }
     val dragState = rememberDragReorderState()
 
@@ -106,13 +108,12 @@ fun QueueScreen(
                         itemKey = song.id,
                         index = index,
                         itemCount = orderedQueue.size,
-                        draggingKey = dragState.draggingKey,
-                        onDragStart = {
+                        dragState = dragState,
+                        onDragStart = { _, startIndex ->
                             isReordering = true
-                            dragState.startDrag(it)
+                            dragState.startDrag(song.id, startIndex)
                         },
                         onDragEnd = {
-                            dragState.endDrag()
                             isReordering = false
                         },
                         onMove = { from, to ->
@@ -135,14 +136,17 @@ fun QueueScreen(
                                 .padding(horizontal = 8.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(
-                                Icons.Default.DragHandle,
-                                contentDescription = "Drag to reorder",
-                                tint = if (shuffleEnabled) LightGray.copy(alpha = 0.3f) else LightGray,
-                                modifier = handleModifier
-                                    .size(36.dp)
-                                    .padding(6.dp),
-                            )
+                            Box(
+                                modifier = handleModifier.size(48.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    Icons.Default.DragHandle,
+                                    contentDescription = "Drag to reorder",
+                                    tint = if (shuffleEnabled) LightGray.copy(alpha = 0.3f) else LightGray,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                            }
                             if (isCurrentlyPlaying) {
                                 Icon(
                                     Icons.Default.PlayArrow,
